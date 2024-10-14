@@ -2,6 +2,7 @@ package com.pubsapient.football_standings.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pubsapient.football_standings.models.FootballStanding;
+import com.pubsapient.football_standings.utils.ConnectivityUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -18,7 +19,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class FootballService {
-    private boolean isOffline = false;  // This can be controlled dynamically.
+    private boolean isOffline = false;
     private final ResourceLoader resourceLoader;
     private final RestTemplate restTemplate;
     private final String baseUrl;
@@ -36,23 +37,37 @@ public class FootballService {
     }
 
     public List<FootballStanding> getStandings(String countryName, String leagueName, String teamName) {
+        checkAndUpdateConnectivityStatus();
+        System.out.println("Offline mode->"+isOffline);
         if (isOffline) {
-            return getMockData();
+            return getMockData(countryName, leagueName, teamName);
         }
         return fetchFromExternalAPI(countryName, leagueName, teamName);
     }
 
+    private void checkAndUpdateConnectivityStatus() {
+        this.isOffline = !ConnectivityUtil.isOnline();
+    }
+
+
     // without third part library
-    private List<FootballStanding> getMockData() {
+    private List<FootballStanding> getMockData(String countryName,String leagueName,String teamName) {
         Resource resource = resourceLoader.getResource("classpath:footballStandings.json");
         try {
             String json = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            System.out.println("Loaded JSON: " + json); // Log the raw JSON string
             List<FootballStanding> footballStandings = parseJson(json);
-            return footballStandings;
+            return getCollect(countryName, leagueName, teamName, footballStandings);
         } catch (IOException e) {
             throw new RuntimeException("Error reading football standings data", e);
         }
+    }
+
+    private List<FootballStanding> getCollect(String countryName, String leagueName, String teamName, List<FootballStanding> footballStandings) {
+        return footballStandings.stream()
+                .filter(s -> isValidParameter(countryName) ? matchesFilter(s.getCountryName(), countryName) : true)
+                .filter(s -> isValidParameter(leagueName) ? matchesFilter(s.getLeagueName(), leagueName) : true)
+                .filter(s -> isValidParameter(teamName) ? matchesFilter(s.getTeamName(), teamName) : true)
+                .collect(Collectors.toList());
     }
 
     private static List<FootballStanding> parseJson(String json) {
@@ -97,22 +112,16 @@ public class FootballService {
     }
 
     private List<FootballStanding> fetchFromExternalAPI(String countryName, String leagueName, String teamName) {
-        // Implement the logic to call the External API
         try {
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .queryParam("action", "get_standings")
                 .queryParam("league_id", 152)
                 .queryParam("APIkey", apiKey)
                 .toUriString();
-
         ResponseEntity<FootballStanding[]> response = restTemplate.getForEntity(url, FootballStanding[].class);
-        // Perform filtering in-memory based on the received parameters
         List<FootballStanding> standings = List.of(response.getBody());
-        return standings.stream()
-                .filter(s -> isValidParameter(countryName) ? matchesFilter(s.getCountryName(), countryName) : true)
-                .filter(s -> isValidParameter(leagueName) ?  matchesFilter(s.getLeagueName(), leagueName) : true)
-                .filter(s -> isValidParameter(teamName) ? matchesFilter(s.getTeamName(), teamName) : true)
-                .collect(Collectors.toList());
+        return getCollect( countryName, leagueName, teamName, standings);
+
         } catch (RestClientException e) {
             throw new RuntimeException("Failed to retrieve data from external API", e);
         }

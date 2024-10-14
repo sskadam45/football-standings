@@ -1,8 +1,6 @@
 package com.pubsapient.football_standings.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.pubsapient.football_standings.models.FootballStanding;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -13,7 +11,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -127,25 +124,5 @@ public class FootballService {
 
     private boolean isValidParameter(String param) {
         return param != null && !param.trim().isEmpty() && !param.trim().equalsIgnoreCase("null");
-    }
-
-
-
-    // with third party library
-    private List<FootballStanding> getMockData2() {
-        Resource resource = resourceLoader.getResource("classpath:footballStandings.json");
-        try {
-            String json = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            System.out.println("Loaded JSON: " + json); // Log the raw JSON string
-            Gson gson = new Gson();
-
-            Type listType = new TypeToken<List<FootballStanding>>(){}.getType();
-            List<FootballStanding> people = gson.fromJson(json, listType);
-
-            return people;
-
-        } catch (IOException e) {
-            throw new RuntimeException("Error reading football standings data", e);
-        }
     }
 }
